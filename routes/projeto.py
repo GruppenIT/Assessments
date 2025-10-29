@@ -669,6 +669,72 @@ def gerar_relatorio_pdf(projeto_id):
         flash(f'Erro ao gerar o relatório PDF: {str(e)}', 'danger')
         return redirect(url_for('projeto.estatisticas', projeto_id=projeto.id))
 
+@projeto_bp.route('/<int:projeto_id>/exportar-respostas-csv')
+@login_required
+@admin_required
+def exportar_respostas_csv(projeto_id):
+    """Exporta todas as respostas do projeto em formato CSV"""
+    import csv
+    import io
+    from flask import make_response
+    from models.resposta import Resposta
+    
+    projeto = Projeto.query.get_or_404(projeto_id)
+    
+    # Verificar se projeto tem assessments
+    if not projeto.assessments:
+        flash('O projeto não possui assessments para exportar.', 'warning')
+        return redirect(url_for('projeto.estatisticas', projeto_id=projeto.id))
+    
+    try:
+        # Coletar todas as respostas de todos os assessments do projeto
+        todas_respostas = []
+        for assessment in projeto.assessments:
+            respostas = Resposta.query.filter_by(
+                cliente_assessment_id=assessment.id
+            ).order_by(Resposta.id).all()
+            
+            for resposta in respostas:
+                pergunta = resposta.pergunta
+                dominio = pergunta.dominio if pergunta else None
+                
+                todas_respostas.append({
+                    'respondente': assessment.respondente.nome if assessment.respondente else 'N/A',
+                    'dominio': dominio.nome if dominio else 'N/A',
+                    'pergunta': pergunta.texto if pergunta else 'N/A',
+                    'comentario': resposta.comentario or '',
+                    'pontuacao': resposta.valor if resposta.valor is not None else ''
+                })
+        
+        if not todas_respostas:
+            flash('Não há respostas para exportar neste projeto.', 'warning')
+            return redirect(url_for('projeto.estatisticas', projeto_id=projeto.id))
+        
+        # Criar CSV em memória
+        output = io.StringIO()
+        fieldnames = ['respondente', 'dominio', 'pergunta', 'comentario', 'pontuacao']
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        for resposta in todas_respostas:
+            writer.writerow(resposta)
+        
+        # Preparar resposta
+        output.seek(0)
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8-sig'
+        
+        # Nome do arquivo
+        filename = f"respostas_{projeto.nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        
+        return response
+    
+    except Exception as e:
+        logging.error(f'Erro ao exportar respostas CSV do projeto {projeto_id}: {e}')
+        flash(f'Erro ao gerar arquivo CSV: {str(e)}', 'danger')
+        return redirect(url_for('projeto.estatisticas', projeto_id=projeto.id))
+
 @projeto_bp.route('/<int:projeto_id>/editar-avaliador', methods=['GET', 'POST'])
 @login_required
 @admin_required

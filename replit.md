@@ -43,6 +43,7 @@ Preferred communication style: Simple, everyday language.
 - **Project Configuration**: Association of projects with assessment versions, evaluator assignment.
 - **Lead Management**: Automated lead creation upon email request in public assessments, cascade deletion of public assessments upon lead removal, cleanup script.
 - **Group Statistics**: Interactive charts (vertical bar, horizontal bar, radar, table), score-based color coding, real-time auto-refresh, filters for assessment type and tag, group deletion, QR code generation.
+- **CSV Export**: Export button on project statistics page allows administrators to download all responses from all assessments in CSV format. Includes columns: respondente, dominio, pergunta, comentario, pontuacao. UTF-8-BOM encoding for Excel compatibility. Deployment script: `aplicar_exportacao_csv.sh`.
 
 ## External Dependencies
 - **Flask**: Web framework.
