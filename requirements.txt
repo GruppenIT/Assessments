@@ -35,5 +35,3 @@ pillow
 pyotp
 qrcode
 requests
-pyotp
-qrcode
