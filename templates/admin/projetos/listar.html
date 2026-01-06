@@ -64,12 +64,12 @@
         <div class="col-md-3">
             <div class="card text-center">
                 <div class="card-body">
-                    <i class="fas fa-check-circle text-success mb-2" style="font-size: 2rem;"></i>
+                    <i class="fas fa-check-double text-primary mb-2" style="font-size: 2rem;"></i>
                     <h5 class="card-title">
-                        {% set concluidos = projetos_data|selectattr('progresso', 'greaterthan', 99)|list|length %}
-                        {{ concluidos }}
+                        {% set liberados = projetos_data|selectattr('is_liberado')|list|length %}
+                        {{ liberados }}
                     </h5>
-                    <p class="card-text text-muted">Projetos Concluídos</p>
+                    <p class="card-text text-muted">Projetos Liberados</p>
                 </div>
             </div>
         </div>
@@ -200,7 +200,11 @@
                                             </td>
                                             <td>{{ projeto.data_criacao.strftime('%d/%m/%Y') }}</td>
                                             <td>
-                                                {% if projeto_data.progresso >= 100 %}
+                                                {% if projeto_data.is_liberado %}
+                                                    <span class="badge bg-primary">
+                                                        <i class="fas fa-check-double me-1"></i>Liberado
+                                                    </span>
+                                                {% elif projeto_data.progresso >= 100 %}
                                                     <span class="badge bg-success">Concluído</span>
                                                 {% elif projeto_data.progresso > 0 %}
                                                     <span class="badge bg-warning">Em Andamento</span>

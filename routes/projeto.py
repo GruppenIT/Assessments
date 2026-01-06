@@ -41,12 +41,14 @@ def listar_working():
             progresso = projeto.get_progresso_geral()
             respondentes_count = len(projeto.get_respondentes_ativos())
             tipos_count = len(projeto.get_tipos_assessment())
+            is_liberado = projeto.is_totalmente_finalizado()
             
             projetos_data.append({
                 'projeto': projeto,
                 'respondentes_count': respondentes_count,
                 'tipos_count': tipos_count,
-                'progresso': progresso
+                'progresso': progresso,
+                'is_liberado': is_liberado
             })
 
         return render_template('admin/projetos/listar.html', 
