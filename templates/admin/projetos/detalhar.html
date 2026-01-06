@@ -142,6 +142,27 @@
                                             <small class="text-muted">
                                                 {{ progresso_tipo.perguntas_respondidas }} de {{ progresso_tipo.total_perguntas }} perguntas respondidas
                                             </small>
+                                            
+                                            {% if progresso_tipo.progresso >= 100 and not progresso_tipo.finalizado %}
+                                            <div class="mt-2 pt-2 border-top">
+                                                <form method="POST" action="{{ url_for('projeto.forcar_liberacao', projeto_id=projeto.id, projeto_assessment_id=progresso_tipo.projeto_assessment_id) }}" 
+                                                      onsubmit="return confirm('Tem certeza que deseja forçar a liberação deste assessment?\n\nIsso marcará o assessment como concluído mesmo que o respondente não tenha clicado em Concluir.');">
+                                                    <button type="submit" class="btn btn-warning btn-sm">
+                                                        <i class="fas fa-unlock me-1"></i>Forçar Liberação
+                                                    </button>
+                                                    <small class="text-muted d-block mt-1">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        100% respondido, mas não foi concluído pelo respondente
+                                                    </small>
+                                                </form>
+                                            </div>
+                                            {% elif progresso_tipo.finalizado %}
+                                            <div class="mt-2">
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>Finalizado
+                                                </span>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>

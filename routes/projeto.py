@@ -327,7 +327,9 @@ def detalhar(projeto_id):
             'progresso': progresso_tipo,
             'perguntas_respondidas': perguntas_respondidas,
             'total_perguntas': total_perguntas,
-            'versao': versao_info
+            'versao': versao_info,
+            'finalizado': projeto_assessment.finalizado,
+            'projeto_assessment_id': projeto_assessment.id
         }
     
     return render_template('admin/projetos/detalhar.html',
@@ -779,6 +781,113 @@ def adicionar_respondente(projeto_id):
                 flash(f'{field}: {error}', 'danger')
     
     return redirect(url_for('projeto.gerenciar_respondentes', projeto_id=projeto_id))
+
+@projeto_bp.route('/<int:projeto_id>/forcar-liberacao/<int:projeto_assessment_id>', methods=['POST'])
+@login_required
+@admin_required
+def forcar_liberacao(projeto_id, projeto_assessment_id):
+    """Força a liberação de um assessment quando 100% das perguntas foram respondidas"""
+    from datetime import datetime
+    
+    projeto = Projeto.query.get_or_404(projeto_id)
+    projeto_assessment = ProjetoAssessment.query.get_or_404(projeto_assessment_id)
+    
+    # Verificar se o assessment pertence ao projeto
+    if projeto_assessment.projeto_id != projeto.id:
+        flash('Assessment não pertence a este projeto.', 'danger')
+        return redirect(url_for('projeto.detalhar', projeto_id=projeto_id))
+    
+    # Verificar se já está finalizado
+    if projeto_assessment.finalizado:
+        flash('Este assessment já está finalizado.', 'info')
+        return redirect(url_for('projeto.detalhar', projeto_id=projeto_id))
+    
+    # Calcular progresso para verificar se está em 100%
+    from models.pergunta import Pergunta
+    from models.resposta import Resposta
+    
+    if projeto_assessment.versao_assessment_id:
+        # Novo sistema de versionamento
+        from models.assessment_version import AssessmentDominio
+        versao = projeto_assessment.versao_assessment
+        
+        total_perguntas = db.session.query(Pergunta).join(
+            AssessmentDominio, Pergunta.dominio_versao_id == AssessmentDominio.id
+        ).filter(
+            AssessmentDominio.versao_id == versao.id,
+            AssessmentDominio.ativo == True,
+            Pergunta.ativo == True
+        ).count()
+        
+        perguntas_respondidas = db.session.query(Pergunta.id).join(
+            Resposta, Pergunta.id == Resposta.pergunta_id
+        ).join(
+            AssessmentDominio, Pergunta.dominio_versao_id == AssessmentDominio.id
+        ).filter(
+            Resposta.projeto_id == projeto.id,
+            AssessmentDominio.versao_id == versao.id,
+            AssessmentDominio.ativo == True,
+            Pergunta.ativo == True
+        ).distinct().count()
+    else:
+        # Sistema antigo
+        from models.dominio import Dominio
+        tipo = projeto_assessment.tipo_assessment
+        
+        total_perguntas = Pergunta.query.join(Dominio).filter(
+            Dominio.tipo_assessment_id == tipo.id,
+            Dominio.ativo == True,
+            Pergunta.ativo == True
+        ).count()
+        
+        perguntas_respondidas = db.session.query(Pergunta.id).join(
+            Resposta, Pergunta.id == Resposta.pergunta_id
+        ).join(Dominio).filter(
+            Resposta.projeto_id == projeto.id,
+            Dominio.tipo_assessment_id == tipo.id,
+            Dominio.ativo == True,
+            Pergunta.ativo == True
+        ).distinct().count()
+    
+    # Verificar se 100% das perguntas foram respondidas
+    if total_perguntas == 0:
+        flash('Este assessment não possui perguntas.', 'danger')
+        return redirect(url_for('projeto.detalhar', projeto_id=projeto_id))
+    
+    progresso = round((perguntas_respondidas / total_perguntas * 100), 1)
+    
+    if progresso < 100:
+        flash(f'Não é possível forçar liberação. O assessment está em {progresso}% (precisa estar em 100%).', 'danger')
+        return redirect(url_for('projeto.detalhar', projeto_id=projeto_id))
+    
+    # Forçar a finalização do assessment
+    try:
+        projeto_assessment.finalizado = True
+        projeto_assessment.data_finalizacao = datetime.utcnow()
+        db.session.commit()
+        
+        # Registrar na auditoria
+        from models.auditoria import registrar_acao
+        registrar_acao(
+            acao='forcar_liberacao',
+            entidade='projeto_assessment',
+            entidade_id=projeto_assessment.id,
+            detalhes={
+                'projeto_id': projeto.id,
+                'projeto_nome': projeto.nome,
+                'motivo': 'Liberação forçada pelo administrador (cliente não clicou em concluir)'
+            }
+        )
+        
+        logging.info(f"Assessment forçadamente liberado: projeto={projeto.id}, assessment={projeto_assessment.id}")
+        flash('Assessment liberado com sucesso! Agora você pode gerar os textos de introdução e considerações finais.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Erro ao forçar liberação: {e}")
+        flash('Erro ao forçar liberação. Tente novamente.', 'danger')
+    
+    return redirect(url_for('projeto.detalhar', projeto_id=projeto_id))
 
 @projeto_bp.route('/<int:projeto_id>/associar-respondente/<int:respondente_id>', methods=['POST'])
 @login_required
