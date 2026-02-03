@@ -3,10 +3,10 @@
 """
 Script para exportar respostas de projetos liberados para CSV.
 
-Uso: python scripts/exportar_respostas.py "Nome do Tipo de Assessment"
+Uso: python3 scripts/exportar_respostas.py "Nome do Tipo de Assessment"
 
 Gera um arquivo CSV no formato: nome_argumento_timestamp.csv
-Contém apenas respostas de projetos com status "Liberado" (is_totalmente_finalizado=True)
+Contém apenas respostas de projetos com status "Liberado" (finalizado=True)
 """
 
 import sys
@@ -17,13 +17,12 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app, db
-from models.tipo_assessment import TipoAssessment
+from models.assessment_version import AssessmentTipo, AssessmentVersao, AssessmentDominio
 from models.projeto import Projeto, ProjetoAssessment
 from models.cliente import Cliente
 from models.respondente import Respondente
 from models.resposta import Resposta
 from models.pergunta import Pergunta
-from models.dominio import Dominio
 
 
 def sanitize_filename(name):
@@ -40,24 +39,32 @@ def exportar_respostas(nome_tipo_assessment):
     app = create_app()
     
     with app.app_context():
-        tipo = TipoAssessment.query.filter(
-            TipoAssessment.nome.ilike(f'%{nome_tipo_assessment}%')
+        tipo = AssessmentTipo.query.filter(
+            AssessmentTipo.nome.ilike(f'%{nome_tipo_assessment}%')
         ).first()
         
         if not tipo:
             print(f"Erro: Tipo de assessment '{nome_tipo_assessment}' não encontrado.")
             print("\nTipos disponíveis:")
-            tipos = TipoAssessment.query.filter_by(ativo=True).all()
+            tipos = AssessmentTipo.query.filter_by(ativo=True).all()
             for t in tipos:
                 print(f"  - {t.nome}")
             return False
         
         print(f"Tipo de assessment encontrado: {tipo.nome} (ID: {tipo.id})")
         
-        projetos_assessment = ProjetoAssessment.query.filter_by(
-            tipo_assessment_id=tipo.id,
-            ativo=True,
-            finalizado=True
+        versoes_ids = [v.id for v in tipo.versoes]
+        
+        if not versoes_ids:
+            print(f"Nenhuma versão encontrada para o tipo '{tipo.nome}'.")
+            return False
+        
+        print(f"Versões encontradas: {len(versoes_ids)}")
+        
+        projetos_assessment = ProjetoAssessment.query.filter(
+            ProjetoAssessment.versao_assessment_id.in_(versoes_ids),
+            ProjetoAssessment.ativo == True,
+            ProjetoAssessment.finalizado == True
         ).all()
         
         projeto_ids = [pa.projeto_id for pa in projetos_assessment]
@@ -76,8 +83,8 @@ def exportar_respostas(nome_tipo_assessment):
         respostas = db.session.query(
             Cliente.nome.label('cliente_nome'),
             Respondente.email.label('respondente_email'),
-            TipoAssessment.nome.label('tipo_nome'),
-            Dominio.nome.label('dominio_nome'),
+            AssessmentTipo.nome.label('tipo_nome'),
+            AssessmentDominio.nome.label('dominio_nome'),
             Pergunta.texto.label('pergunta_texto'),
             Resposta.nota.label('valor_resposta'),
             Resposta.comentario.label('comentario')
@@ -90,16 +97,18 @@ def exportar_respostas(nome_tipo_assessment):
         ).join(
             Pergunta, Resposta.pergunta_id == Pergunta.id
         ).join(
-            Dominio, Pergunta.dominio_id == Dominio.id
+            AssessmentDominio, Pergunta.dominio_versao_id == AssessmentDominio.id
         ).join(
-            TipoAssessment, Dominio.tipo_assessment_id == TipoAssessment.id
+            AssessmentVersao, AssessmentDominio.versao_id == AssessmentVersao.id
+        ).join(
+            AssessmentTipo, AssessmentVersao.tipo_id == AssessmentTipo.id
         ).filter(
             Resposta.projeto_id.in_(projeto_ids),
-            TipoAssessment.id == tipo.id
+            AssessmentTipo.id == tipo.id
         ).order_by(
             Cliente.nome,
             Respondente.email,
-            Dominio.ordem,
+            AssessmentDominio.ordem,
             Pergunta.ordem
         ).all()
         
@@ -143,10 +152,10 @@ def exportar_respostas(nome_tipo_assessment):
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: python scripts/exportar_respostas.py \"Nome do Tipo de Assessment\"")
+        print("Uso: python3 scripts/exportar_respostas.py \"Nome do Tipo de Assessment\"")
         print("\nExemplo:")
-        print('  python scripts/exportar_respostas.py "Cybersecurity"')
-        print('  python scripts/exportar_respostas.py "Compliance"')
+        print('  python3 scripts/exportar_respostas.py "Cybersecurity"')
+        print('  python3 scripts/exportar_respostas.py "NIST CSF"')
         sys.exit(1)
     
     nome_tipo = sys.argv[1]
