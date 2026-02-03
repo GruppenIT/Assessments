@@ -27,10 +27,13 @@ from models.pergunta import Pergunta
 
 def sanitize_filename(name):
     """Remove caracteres inválidos do nome do arquivo"""
-    invalid_chars = '<>:"/\\|?*'
+    invalid_chars = '<>:"/\\|?*()[]{}!@#$%^&+=`~'
     for char in invalid_chars:
-        name = name.replace(char, '_')
-    return name.replace(' ', '_').lower()
+        name = name.replace(char, '')
+    name = name.replace(' ', '_').replace('-', '_').replace('__', '_')
+    while '__' in name:
+        name = name.replace('__', '_')
+    return name.strip('_').lower()
 
 
 def exportar_respostas(nome_tipo_assessment):
