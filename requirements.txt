@@ -35,3 +35,8 @@ pillow
 pyotp
 qrcode
 requests
+msal
+openai
+pyotp
+pytz
+qrcode
